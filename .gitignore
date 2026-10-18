@@ -1,0 +1,20 @@
+# Node.js / Vite
+node_modules/
+dist/
+.vite/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local configuration and databases
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+
+# macOS
+.DS_Store
