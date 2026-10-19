@@ -1,3 +1,8 @@
 node_modules/
 dist/
 .vite/
+.codegraph/
+
+# Public source observations are intentionally versioned.
+!/.data/
+!/.data/air-quality.sqlite
