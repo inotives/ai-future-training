@@ -2,7 +2,7 @@
 id: T-0005
 feature: IP-0001
 title: Resilience checks and local runbook
-status: queued
+status: ready
 depends_on: [T-0004]
 ---
 

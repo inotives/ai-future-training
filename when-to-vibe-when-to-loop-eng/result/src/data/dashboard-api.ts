@@ -69,3 +69,16 @@ export interface DashboardResponse {
   selectedRegion: string;
   metrics: Record<AirQualityMetric, MetricDashboardData>;
 }
+
+/** Fetch one database-backed dashboard snapshot from the local API. */
+export async function fetchDashboard(region = "central", fetchImpl: typeof fetch = fetch): Promise<DashboardResponse> {
+  const response = await fetchImpl(`/api/dashboard?region=${encodeURIComponent(region)}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`Dashboard API returned HTTP ${response.status}`);
+  const body: unknown = await response.json();
+  if (!body || typeof body !== "object" || !("regions" in body) || !("metrics" in body)) {
+    throw new Error("Dashboard API returned an invalid response");
+  }
+  return body as DashboardResponse;
+}
