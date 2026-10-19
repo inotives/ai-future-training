@@ -2,7 +2,7 @@
 id: T-0004
 feature: IP-0001
 title: Bind the dashboard to live data
-status: queued
+status: ready
 depends_on: [T-0003]
 ---
 
