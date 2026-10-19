@@ -15,6 +15,8 @@ export const PROVIDERS = {
 
 const MAX_ATTEMPTS = 3;
 const MAX_RETRY_DELAY_MS = 5_000;
+const PROVIDER_REQUEST_LIMIT = 6;
+const PROVIDER_WINDOW_MS = 10_000;
 
 export function singaporeDate(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -70,6 +72,29 @@ export function parsePayload(payload, metric, fetchedAt = new Date().toISOString
   return normalized;
 }
 
+function createSlidingWindowLimiter({ limit, windowMs, now, sleep }) {
+  const requestTimes = [];
+  let queue = Promise.resolve();
+
+  function acquire() {
+    const turn = queue.then(async () => {
+      while (true) {
+        const currentTime = now();
+        while (requestTimes.length && currentTime - requestTimes[0] >= windowMs) requestTimes.shift();
+        if (requestTimes.length < limit) {
+          requestTimes.push(currentTime);
+          return;
+        }
+        await sleep(Math.max(1, requestTimes[0] + windowMs - currentTime));
+      }
+    });
+    queue = turn.catch(() => {});
+    return turn;
+  }
+
+  return { acquire };
+}
+
 function retryAfterMs(response, attempt) {
   const header = response?.headers?.get?.("retry-after");
   const seconds = Number(header);
@@ -81,6 +106,7 @@ function retryAfterMs(response, attempt) {
 
 export async function fetchPayload(url, {
   fetchImpl = fetch,
+  beforeAttempt = async () => {},
   sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
   timeoutMs = 10_000,
   apiKey = process.env.DATA_GOV_SG_API_KEY,
@@ -91,6 +117,7 @@ export async function fetchPayload(url, {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     let response;
     try {
+      await beforeAttempt();
       const headers = apiKey ? { "x-api-key": apiKey } : {};
       response = await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
       if (!response.ok) {
@@ -147,8 +174,14 @@ export function createIngestionService({
   pollIntervalMs = Number(process.env.AQI_POLL_INTERVAL_MS ?? 10 * 60_000),
   timeoutMs = Number(process.env.AQI_REQUEST_TIMEOUT_MS ?? 10_000),
   attempts = MAX_ATTEMPTS,
+  providerRequestLimit = PROVIDER_REQUEST_LIMIT,
+  providerWindowMs = PROVIDER_WINDOW_MS,
+  requestNow = () => performance.now(),
 } = {}) {
   if (!database) throw new TypeError("database is required");
+  if (!Number.isInteger(providerRequestLimit) || providerRequestLimit < 1) throw new RangeError("providerRequestLimit must be a positive integer");
+  if (!Number.isFinite(providerWindowMs) || providerWindowMs <= 0) throw new RangeError("providerWindowMs must be positive");
+  const requestLimiter = createSlidingWindowLimiter({ limit: providerRequestLimit, windowMs: providerWindowMs, now: requestNow, sleep });
   let stopped = false;
   let timer;
   let active;
@@ -161,7 +194,7 @@ export function createIngestionService({
     try {
       const url = requestUrl(metric, date);
       const payload = await fetchPayload(url, {
-        fetchImpl, sleep, timeoutMs, attempts,
+        fetchImpl, sleep, timeoutMs, attempts, beforeAttempt: () => requestLimiter.acquire(),
         validatePayload: value => parsePayload(value, metric),
       });
       const fetchedAt = now().toISOString();

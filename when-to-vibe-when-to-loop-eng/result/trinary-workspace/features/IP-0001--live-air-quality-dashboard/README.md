@@ -1,7 +1,7 @@
 ---
 id: IP-0001
 title: Ingest Live Air Quality Data and Bind the Dashboard
-status: Implementing
+status: Ready for human acceptance
 branch: feat/live-air-quality-dashboard
 created_at: 2026-10-19T21:54:04Z
 ---
@@ -99,7 +99,7 @@ The user approved the five-task dependency chain in chat on 2026-10-19 at 21:57 
 
 ## Task breakdown
 
-The approved feature scope is decomposed into the task briefs below. The human approved this five-task dependency graph on 2026-10-19T21:57:47Z. T-0001 is `ready`; the remaining tasks are `queued` until their dependencies are done.
+The approved feature scope is decomposed into the task briefs below. The human approved this five-task dependency graph on 2026-10-19T21:57:47Z. All five implementation tasks are now `done` after independent review.
 
 1. [T-0001 — Local API and SQLite foundation](tasks/T-0001--local-api-and-sqlite-foundation/README.md) — no dependencies.
 2. [T-0002 — NEA ingestion and historical backfill](tasks/T-0002--nea-ingestion-and-historical-backfill/README.md) — depends on T-0001.
@@ -109,6 +109,7 @@ The approved feature scope is decomposed into the task briefs below. The human a
 
 ## Final human acceptance
 
-- Evidence: pending implementation.
-- Human decision: pending implementation acceptance.
+- Evidence: all five task cycles completed and independently approved. `npm test` passed (20 tests), `npm run build` passed, and `git diff --check` passed. A manual Chrome run of `http://127.0.0.1:3565/` through the Vite proxy to the API on `127.0.0.1:3566` showed live PSI and PM2.5 readings for all five regions, latest observation/source-update times, a 24-hour trend, and seven-day hourly history with 7/7 day coverage. After the shared six-per-ten-second limiter was added, the server logged no 429 during the second smoke session. Deterministic rendered integration tests also verified retained values and the visible provider-error state after a simulated upstream failure.
+- Limitation: the outage state was verified through the rendered integration harness with a simulated provider failure, not by forcing a live provider outage in Chrome.
+- Human decision: pending final acceptance.
 - Acceptance date: pending.

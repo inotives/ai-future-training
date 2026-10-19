@@ -1,28 +1,23 @@
-# Lesson Boilerplate
+# Singapore Air Quality Dashboard
 
-This is a frontend-only starter for the Singapore Temperature Explorer lesson. It gives you a TypeScript single-page app, a local UI server, and synthetic temperature data to build the mock dashboard with.
+This project displays PSI and PM2.5 observations for Singapore's five regions. The local Node API stores readings in SQLite, while the Vite frontend refreshes the dashboard from that API.
 
 ## Run it
 
-Requirements: Node.js 22.13+ (uses the built-in `node:sqlite` module).
+Requirements: Node.js 22.13+ (uses the built-in `node:sqlite` module) and npm.
 
 ```sh
 npm install
 npm run dev
 ```
 
-This starts the local API on <http://127.0.0.1:3556> and Vite on <http://localhost:3555>. Vite proxies `/api` requests to the API. The SQLite database is created at `.data/air-quality.sqlite` on first start; set `AQI_DB_PATH` to use another path. Run `npm run test` for the API and database checks.
+This starts the local API on <http://127.0.0.1:3556> and Vite on <http://127.0.0.1:3555>. Open <http://127.0.0.1:3555>. Vite proxies `/api` requests to the API. SQLite is created at `.data/air-quality.sqlite` on first start and migrations run automatically; set `AQI_DB_PATH` to store it elsewhere. Run `npm test` and `npm run build` for deterministic checks.
 
 Run only the API with `npm run start:api`.
 
-## Start building
+To use non-default ports, set `API_PORT` and `VITE_PORT` when starting `npm run dev`. Useful API-only settings are `AQI_POLL_INTERVAL_MS` (default 600000), `AQI_BACKFILL_DELAY_MS` (default 2000), and `AQI_REQUEST_TIMEOUT_MS` (default 10000). The upstream API key is optional; if provided, set `DATA_GOV_SG_API_KEY` in the environment. Do not put secrets in tracked files.
 
-- Build your dashboard in `src/main.ts` and `src/style.css`.
-- Use the synthetic station data in `src/data/temperature-fixture.ts`.
-- The fixture includes missing, stale, loading, and error cases for the UI to represent.
-- Use Flaticon assets only as needed, and follow the selected icon's license and attribution terms.
-
-The synthetic fixture remains available for UI development, while the local API and SQLite database provide the live-data path.
+On its first successful startup, the service polls both current feeds, then backfills the latest 30 Singapore calendar days for PSI and PM2.5. A shared sliding-window limiter caps all data.gov.sg request attempts across both feeds, current polls, backfill, and retries at six per 10 seconds. Historical requests also have a two-second pacing delay by default. Successful date/metric runs are recorded so a later start resumes missing or failed dates and skips completed ones. Current data is polled every 10 minutes; the UI refreshes from the local API every minute. Provider errors remain visible in the dashboard, and failed polls do not delete stored observations.
 
 ## Local dashboard API
 
@@ -36,3 +31,12 @@ The frontend-safe response interfaces are in `src/data/dashboard-api.ts`. Each m
 - `status`: latest current poll attempt, last successful current poll, and the latest current-poll error when it failed.
 
 The snapshot top level includes `generatedAt`, `timezone: "Asia/Singapore"`, region names/coordinates, and `selectedRegion`. PSI uses `index`; PM2.5 uses `µg/m³`.
+
+## Recovery
+
+- If the dashboard shows a provider error, check the API is reachable at <http://127.0.0.1:3556/api/health> and restart `npm run dev` if it is not. Existing readings remain available while a feed is failing.
+- If the API reports a database or migration error, stop the app and confirm the `.data` directory is writable and the disk has space. Restarting retries unapplied migrations and incomplete backfill dates.
+- To start over with an empty local database, stop the app and remove `.data/air-quality.sqlite` plus its `-shm` and `-wal` companions if present. The next start creates a fresh database and repeats the initial poll and 30-day backfill. This permanently removes local history.
+- Use `npm test` and `npm run build` after a recovery to check the local installation.
+
+The integration tests use a temporary SQLite database and stubbed provider responses. They cover the fresh database → ingestion → dashboard API path, repeated scheduled polling, last-known readings after provider failure, the UI's live data/error binding, and unknown-region responses without requiring a network listener.

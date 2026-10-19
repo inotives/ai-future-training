@@ -16,6 +16,13 @@ const payload = (metric = "psi", values = { north: 31, south: 32, east: 33, west
 });
 const response = value => ({ ok: true, status: 200, json: async () => value });
 
+function assertSlidingWindowLimit(timestamps, limit, windowMs) {
+  for (const start of timestamps) {
+    const count = timestamps.filter(timestamp => timestamp >= start && timestamp < start + windowMs).length;
+    assert.ok(count <= limit, `${count} requests started within the window at ${start}ms`);
+  }
+}
+
 test("normalizes PSI and PM2.5 while preserving source times and missing regional values", () => {
   const psi = parsePayload(payload("psi", { north: 31, central: 35 }), "psi", "2026-10-20T00:10:00.000Z");
   const pm25 = parsePayload(payload("pm25", { south: 8 }), "pm25", "2026-10-20T00:10:00.000Z");
@@ -48,6 +55,69 @@ test("paces combined historical requests at the compliant two-second default", a
     assert.equal(requests, 4);
     assert.deepEqual(waits, [2_000, 2_000, 2_000]);
   } finally {
+    database.close();
+  }
+});
+
+test("startup polling and immediate backfill share the six-per-ten-second provider limit", async () => {
+  const database = openDatabase(":memory:");
+  let clock = 0;
+  const requestTimes = [];
+  const service = createIngestionService({
+    database,
+    now,
+    requestNow: () => clock,
+    sleep: async ms => { clock += ms; },
+    backfillDelayMs: 0,
+    pollIntervalMs: 60_000,
+    attempts: 1,
+    fetchImpl: async url => {
+      requestTimes.push(clock);
+      return response(payload(String(url).includes("pm25") ? "pm25" : "psi"));
+    },
+  });
+  try {
+    await service.start();
+    await service.stop();
+    assert.equal(requestTimes.length, 62, "two current-feed requests plus 30 dates for two metrics");
+    assert.deepEqual(requestTimes.slice(0, 6), [0, 0, 0, 0, 0, 0]);
+    assert.ok(requestTimes.includes(10_000), "the seventh request waits for the first window to expire");
+    assertSlidingWindowLimit(requestTimes, 6, 10_000);
+  } finally {
+    await service.stop();
+    database.close();
+  }
+});
+
+test("retry attempts use the same limiter as other feed requests", async () => {
+  const database = openDatabase(":memory:");
+  let clock = 0;
+  const requestTimes = [];
+  let failing = false;
+  const service = createIngestionService({
+    database,
+    now,
+    requestNow: () => clock,
+    sleep: async ms => { clock += ms; },
+    backfillDelayMs: 0,
+    attempts: 3,
+    fetchImpl: async url => {
+      requestTimes.push(clock);
+      if (failing) return { ok: false, status: 429, headers: { get: () => "0" } };
+      return response(payload(String(url).includes("pm25") ? "pm25" : "psi"));
+    },
+  });
+  try {
+    for (let index = 0; index < 5; index += 1) {
+      await service.ingest(index % 2 ? "pm25" : "psi", "current");
+    }
+    failing = true;
+    await assert.rejects(service.ingest("psi", "current"), /HTTP 429/);
+    assert.deepEqual(requestTimes.slice(0, 6), [0, 0, 0, 0, 0, 0]);
+    assert.deepEqual(requestTimes.slice(6), [10_000, 10_000]);
+    assertSlidingWindowLimit(requestTimes, 6, 10_000);
+  } finally {
+    await service.stop();
     database.close();
   }
 });
