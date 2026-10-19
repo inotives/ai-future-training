@@ -171,7 +171,6 @@ export function createIngestionService({
   sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
   now = () => new Date(),
   backfillDelayMs = Number(process.env.AQI_BACKFILL_DELAY_MS ?? 2_000),
-  pollIntervalMs = Number(process.env.AQI_POLL_INTERVAL_MS ?? 10 * 60_000),
   timeoutMs = Number(process.env.AQI_REQUEST_TIMEOUT_MS ?? 10_000),
   attempts = MAX_ATTEMPTS,
   providerRequestLimit = PROVIDER_REQUEST_LIMIT,
@@ -183,7 +182,6 @@ export function createIngestionService({
   if (!Number.isFinite(providerWindowMs) || providerWindowMs <= 0) throw new RangeError("providerWindowMs must be positive");
   const requestLimiter = createSlidingWindowLimiter({ limit: providerRequestLimit, windowMs: providerWindowMs, now: requestNow, sleep });
   let stopped = false;
-  let timer;
   let active;
   let historyTask;
   seedRegions(database);
@@ -200,15 +198,16 @@ export function createIngestionService({
       const fetchedAt = now().toISOString();
       const observations = parsePayload(payload, metric, fetchedAt);
       database.exec("BEGIN IMMEDIATE;");
+      let changed = false;
       try {
-        for (const observation of observations) upsertObservation(database, observation);
+        for (const observation of observations) changed = upsertObservation(database, observation) || changed;
         database.exec("COMMIT;");
       } catch (error) {
         database.exec("ROLLBACK;");
         throw error;
       }
       finishRun(database, runId, "succeeded", observations.length, null, now().toISOString());
-      return observations.length;
+      return { recordsWritten: observations.length, changed };
     } catch (error) {
       finishRun(database, runId, "failed", 0, String(error?.message ?? error).slice(0, 1000), now().toISOString());
       throw error;
@@ -220,8 +219,20 @@ export function createIngestionService({
     active = (async () => {
       const results = await Promise.allSettled(["psi", "pm25"].map(metric => ingest(metric, "current")));
       const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
-      if (errors.length) throw new AggregateError(errors, `${errors.length} current air-quality feed(s) failed`);
-      return results.reduce((total, result) => total + result.value, 0);
+      const successful = results.filter(result => result.status === "fulfilled").map(result => result.value);
+      const outcome = {
+        changed: successful.some(result => result.changed),
+        recordsWritten: successful.reduce((total, result) => total + result.recordsWritten, 0),
+        errors: errors.map(error => String(error?.message ?? error)),
+      };
+      if (errors.length) {
+        const aggregate = new AggregateError(errors, `${errors.length} current air-quality feed(s) failed`);
+        aggregate.changed = outcome.changed;
+        aggregate.recordsWritten = outcome.recordsWritten;
+        aggregate.feedErrors = outcome.errors;
+        throw aggregate;
+      }
+      return outcome;
     })();
     try { return await active; } finally { active = undefined; }
   }
@@ -241,7 +252,7 @@ export function createIngestionService({
         if (requestCount > 0 && backfillDelayMs > 0) await sleep(backfillDelayMs);
         if (stopped) return { recordsWritten, errors };
         requestCount += 1;
-        try { recordsWritten += await ingest(metric, "backfill", date); }
+        try { recordsWritten += (await ingest(metric, "backfill", date)).recordsWritten; }
         catch (error) { errors.push({ metric, date, error }); }
         if (stopped) return { recordsWritten, errors };
       }
@@ -257,16 +268,11 @@ export function createIngestionService({
     historyTask = importHistory().then(result => {
       for (const failure of result.errors) console.error(`Backfill failed for ${failure.metric} ${failure.date}:`, failure.error.message);
     }).catch(error => console.error("Air-quality backfill failed:", error.message));
-    timer = setInterval(() => {
-      pollCurrent().catch(error => console.error("Scheduled air-quality poll failed:", error.message));
-    }, pollIntervalMs);
-    timer.unref?.();
     return historyTask;
   }
 
   async function stop() {
     stopped = true;
-    if (timer) clearInterval(timer);
     await Promise.allSettled([active, historyTask].filter(Boolean));
   }
 

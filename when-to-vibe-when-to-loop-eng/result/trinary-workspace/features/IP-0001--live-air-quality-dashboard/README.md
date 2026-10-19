@@ -1,7 +1,7 @@
 ---
 id: IP-0001
 title: Ingest Live Air Quality Data and Bind the Dashboard
-status: Implementing
+status: Ready for human acceptance
 branch: feat/live-air-quality-dashboard
 created_at: 2026-10-19T21:54:04Z
 ---
@@ -106,11 +106,11 @@ The approved feature scope is decomposed into the task briefs below. The human a
 3. [T-0003 — Dashboard read API and aggregates](tasks/T-0003--dashboard-read-api-and-aggregates/README.md) — depends on T-0002.
 4. [T-0004 — Bind the dashboard to live data](tasks/T-0004--bind-dashboard-to-live-data/README.md) — depends on T-0003.
 5. [T-0005 — Resilience, automated checks, and local runbook](tasks/T-0005--resilience-checks-and-runbook/README.md) — depends on T-0004.
-6. [T-0006 — Opt-in five-minute auto refresh](tasks/T-0006--opt-in-five-minute-auto-refresh/README.md) — depends on T-0005.
+6. [T-0006 — Opt-in five-minute auto refresh](tasks/T-0006--opt-in-five-minute-auto-refresh/README.md) — depends on T-0005; independently reviewed and complete.
 
 ## Final human acceptance
 
-- Evidence: T-0001 through T-0005 are complete and independently approved. T-0006 auto-refresh change is in progress; final acceptance evidence will be updated after review. `npm test` passed (20 tests), `npm run build` passed, and `git diff --check` passed. A manual Chrome run of `http://127.0.0.1:3565/` through the Vite proxy to the API on `127.0.0.1:3566` showed live PSI and PM2.5 readings for all five regions, latest observation/source-update times, a 24-hour trend, and seven-day hourly history with 7/7 day coverage. After the shared six-per-ten-second limiter was added, the server logged no 429 during the second smoke session. Deterministic rendered integration tests also verified retained values and the visible provider-error state after a simulated upstream failure.
-- Limitation: the outage state was verified through the rendered integration harness with a simulated provider failure, not by forcing a live provider outage in Chrome.
+- Evidence: T-0001 through T-0006 are complete, and T-0006 was independently approved by the reviewer. `npm test` passed (25 tests), `npm run build` passed, and `git diff --check` passed. A manual Chrome check at `http://127.0.0.1:3565/` through the Vite proxy to API port 3566 showed the toggle off by default, enabled it, observed the immediate check complete and “Last check” update, then disabled it and confirmed it returned to Off. The page displayed live PSI and PM2.5 readings for all five regions, latest observation/source-update times, a 24-hour trend, and seven-day hourly history. Previous smoke evidence confirms no provider 429 after shared rate limiting. Deterministic rendered integration tests cover the five-minute timer, reload persistence, changed/no-change behavior, and provider-error handling.
+- Limitation: the live browser check exercised the immediate poll; the five-minute cadence and provider outage behavior were verified with automated tests rather than waiting five minutes or forcing a live outage.
 - Human decision: pending final acceptance.
 - Acceptance date: pending.

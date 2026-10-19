@@ -15,13 +15,15 @@ This starts the local API on <http://127.0.0.1:3556> and Vite on <http://127.0.0
 
 Run only the API with `npm run start:api`.
 
-To use non-default ports, set `API_PORT` and `VITE_PORT` when starting `npm run dev`. Useful API-only settings are `AQI_POLL_INTERVAL_MS` (default 600000), `AQI_BACKFILL_DELAY_MS` (default 2000), and `AQI_REQUEST_TIMEOUT_MS` (default 10000). The upstream API key is optional; if provided, set `DATA_GOV_SG_API_KEY` in the environment. Do not put secrets in tracked files.
+To use non-default ports, set `API_PORT` and `VITE_PORT` when starting `npm run dev`. Useful API-only settings are `AQI_BACKFILL_DELAY_MS` (default 2000) and `AQI_REQUEST_TIMEOUT_MS` (default 10000). The upstream API key is optional; if provided, set `DATA_GOV_SG_API_KEY` in the environment. Do not put secrets in tracked files.
 
-On its first successful startup, the service polls both current feeds, then backfills the latest 30 Singapore calendar days for PSI and PM2.5. A shared sliding-window limiter caps all data.gov.sg request attempts across both feeds, current polls, backfill, and retries at six per 10 seconds. Historical requests also have a two-second pacing delay by default. Successful date/metric runs are recorded so a later start resumes missing or failed dates and skips completed ones. Current data is polled every 10 minutes; the UI refreshes from the local API every minute. Provider errors remain visible in the dashboard, and failed polls do not delete stored observations.
+On startup, the service checks both current feeds once, then backfills the latest 30 Singapore calendar days for PSI and PM2.5. If the dashboard opens while that one-time poll is running, it briefly retries database snapshots until the check finishes or readings appear; these retries do not request provider data. A shared sliding-window limiter caps all data.gov.sg request attempts across both feeds, current checks, backfill, and retries at six per 10 seconds. Historical requests also have a two-second pacing delay by default. Successful date/metric runs are recorded so a later start resumes missing or failed dates and skips completed ones. Use the dashboard's **Auto refresh** switch to opt in to an immediate current check followed by checks every five minutes while the page stays open. The preference is stored in this browser and resumes with an immediate check after reload. The dashboard fetches a new API snapshot when stored observations change; identical checks update only the last-check status without replacing the dashboard panels. Provider errors remain visible while stored observations are retained.
 
 ## Local dashboard API
 
 `GET /api/dashboard?region=central` returns the persisted dashboard snapshot. The optional `region` query selects which region's trend and seven-day profile to include; it defaults to `central`. Unknown regions return HTTP 400 with the available region IDs. The same response always includes latest readings for PSI and PM2.5 across all regions.
+
+`POST /api/poll-current` asks the local service to check both current feeds. It returns `changed`, `recordsWritten`, `checkedAt`, and any provider error details. The dashboard calls this endpoint only when its Auto refresh switch is on. Concurrent calls share the same in-flight poll and all provider attempts still pass through the shared request limiter.
 
 The frontend-safe response interfaces are in `src/data/dashboard-api.ts`. Each metric contains:
 
@@ -39,4 +41,4 @@ The snapshot top level includes `generatedAt`, `timezone: "Asia/Singapore"`, reg
 - To start over with an empty local database, stop the app and remove `.data/air-quality.sqlite` plus its `-shm` and `-wal` companions if present. The next start creates a fresh database and repeats the initial poll and 30-day backfill. This permanently removes local history.
 - Use `npm test` and `npm run build` after a recovery to check the local installation.
 
-The integration tests use a temporary SQLite database and stubbed provider responses. They cover the fresh database → ingestion → dashboard API path, repeated scheduled polling, last-known readings after provider failure, the UI's live data/error binding, and unknown-region responses without requiring a network listener.
+The integration tests use a temporary SQLite database and stubbed provider responses. They cover the fresh database → ingestion → dashboard API path, opt-in immediate and five-minute refresh lifecycle, preference persistence across reload, changed/no-change checks, last-known readings after provider failure, the UI's live data/error binding, and unknown-region responses without requiring a network listener.

@@ -15,8 +15,17 @@ let loading = true;
 let requestError = "";
 let map: L.Map | undefined;
 let mapView: { center: L.LatLng; zoom: number } | undefined;
-let refreshTimer: number | undefined;
 let requestSequence = 0;
+let autoRefreshEnabled = localStorage.getItem("airwatch-auto-refresh") === "true";
+let autoRefreshTimer: number | undefined;
+let checkInFlight: Promise<void> | undefined;
+let lastCheckAt = "";
+let autoRefreshError = "";
+let startupSnapshotTimer: number | undefined;
+let startupSnapshotRetries = 0;
+let startupPollPending = false;
+const STARTUP_SNAPSHOT_RETRY_MS = 1_000;
+const MAX_STARTUP_SNAPSHOT_RETRIES = 45;
 
 const regions = () => data?.regions ?? [];
 const reading = (metric: Metric, region: string): DashboardReading | null => data?.metrics[metric].latestByRegion[region] ?? null;
@@ -73,10 +82,44 @@ function statePanel() {
       : "No readings are stored yet, and the latest upstream poll failed.";
     return `<section class="state-panel error" role="alert"><div class="state-icon">!</div><div><h2>${hasReadings ? "Showing last stored readings" : "No readings stored · provider error"}</h2><p>${message} ${detail ? escapeHtml(detail) : ""}</p></div></section>`;
   }
+  if (startupPollPending) return `<section class="state-panel loading" role="status"><div class="state-icon">◌</div><div><h2>Waiting for the startup NEA check</h2><p>Checking the local database again shortly while startup ingestion finishes.</p></div></section>`;
   if (!hasReadings) return `<section class="state-panel empty-state" role="status"><div class="state-icon">i</div><div><h2>No readings stored yet</h2><p>Current readings will appear after the first successful NEA data.gov.sg poll.</p></div></section>`;
   return "";
 }
 function escapeHtml(value: string) { return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!); }
+
+function refreshStatusText() {
+  return autoRefreshError ? `Check failed: ${escapeHtml(autoRefreshError)}`
+    : lastCheckAt ? `Last check ${time(lastCheckAt, true)}`
+      : autoRefreshEnabled ? "Checking NEA…" : "Automatic checks are off";
+}
+function hasStoredReadings(snapshot: DashboardResponse) {
+  return (["psi", "pm25"] as Metric[]).some(metric => Object.values(snapshot.metrics[metric].latestByRegion).some(Boolean));
+}
+function updateStartupSnapshotRetry(snapshot: DashboardResponse) {
+  const attempts = [snapshot.metrics.psi.status.latestAttempt, snapshot.metrics.pm25.status.latestAttempt];
+  const allCurrentAttemptsSettled = attempts.every(attempt => attempt && attempt.status !== "running");
+  const startupPollIsRunning = attempts.some(attempt => attempt?.status === "running");
+  const pending = !hasStoredReadings(snapshot) && startupPollIsRunning && !allCurrentAttemptsSettled && !requestError && startupSnapshotRetries < MAX_STARTUP_SNAPSHOT_RETRIES;
+  startupPollPending = pending;
+  if (!pending) {
+    if (startupSnapshotTimer !== undefined) window.clearTimeout(startupSnapshotTimer);
+    startupSnapshotTimer = undefined;
+    if (hasStoredReadings(snapshot) || allCurrentAttemptsSettled) startupSnapshotRetries = 0;
+    return;
+  }
+  if (startupSnapshotTimer === undefined) {
+    startupSnapshotTimer = window.setTimeout(() => {
+      startupSnapshotTimer = undefined;
+      startupSnapshotRetries += 1;
+      void refresh();
+    }, STARTUP_SNAPSHOT_RETRY_MS);
+  }
+}
+function updateRefreshStatus() {
+  const status = app!.querySelector<HTMLSpanElement>("#refresh-status");
+  if (status) status.textContent = refreshStatusText();
+}
 
 function render() {
   if (map) { mapView = { center: map.getCenter(), zoom: map.getZoom() }; map.remove(); map = undefined; }
@@ -88,7 +131,7 @@ function render() {
   app!.innerHTML = `
     <main class="shell">
       <header class="topbar"><a class="brand" href="#" aria-label="Airwatch home"><span class="brand-mark">A</span><span>FIELDNOTES<span class="brand-sub">SINGAPORE / ENVIRONMENT</span></span></a><div class="header-meta"><span class="demo-pill live-pill"><i></i>NEA · data.gov.sg</span><span class="updated">${loading ? "UPDATING" : "OBSERVED"}<strong>${time(newest?.observedAt, true)}</strong></span></div></header>
-      <section class="intro"><div><div class="eyebrow"><span class="eyebrow-line"></span>REGIONAL MONITORING / LIVE DATA</div><h1>Singapore air quality</h1><p>Regional PSI and PM2.5 observations from NEA via data.gov.sg. Readings reflect the latest available observation and do not independently confirm a haze event.</p></div><div class="source-meta"><span>Last API refresh ${time(data?.generatedAt, true)}</span><button id="refresh-now" type="button">Refresh now</button></div></section>
+      <section class="intro"><div><div class="eyebrow"><span class="eyebrow-line"></span>REGIONAL MONITORING / LIVE DATA</div><h1>Singapore air quality</h1><p>Regional PSI and PM2.5 observations from NEA via data.gov.sg. Readings reflect the latest available observation and do not independently confirm a haze event.</p></div><div class="source-meta"><span>Last data update ${time(data?.generatedAt, true)}</span><button id="auto-refresh-toggle" class="refresh-toggle ${autoRefreshEnabled ? "enabled" : ""}" type="button" role="switch" aria-checked="${autoRefreshEnabled}" aria-label="Auto refresh every five minutes">Auto refresh <span class="toggle-track" aria-hidden="true"><span></span></span><b>${autoRefreshEnabled ? "On" : "Off"}</b></button><span id="refresh-status" class="refresh-status" role="status" aria-live="polite">${refreshStatusText()}</span></div></section>
       <section class="metrics" aria-label="Regional summary">
         <article class="metric-card"><div class="metric-label">HIGHEST 24-HOUR PSI <span class="unit-chip">INDEX</span></div><div class="metric-value">${psiMax?.value?.value ?? "—"}<span class="metric-unit">PSI</span></div><div class="metric-foot">Latest available · observed ${time(psiMax?.value?.observedAt)}</div></article>
         <article class="metric-card accent"><div class="metric-label">REGION <span class="unit-chip">PSI PEAK</span></div><div class="metric-value region-value">${psiMax ? labels[psiMax.region.id] ?? psiMax.region.name : "—"}</div><div class="metric-foot">Source updated ${time(psiMax?.value?.sourceUpdatedAt)}</div></article>
@@ -105,7 +148,7 @@ function render() {
     </main>`;
   const detailPanel = app!.querySelector(".detail-panel");
   detailPanel?.classList.add(`severity-${psiCategory(reading("psi", selected)?.value).className}`);
-  app!.querySelector("#refresh-now")?.addEventListener("click", () => void refresh());
+  app!.querySelector("#auto-refresh-toggle")?.addEventListener("click", () => setAutoRefresh(!autoRefreshEnabled));
   app!.querySelectorAll<HTMLButtonElement>("[data-region]").forEach(button => button.addEventListener("click", () => { selected = button.dataset.region!; persistSelection(); void refresh(); }));
   app!.querySelectorAll<HTMLButtonElement>("[data-measure]").forEach(button => button.addEventListener("click", () => { measure = button.dataset.measure as Metric; persistSelection(); render(); }));
   if (!data || !regions().length) return;
@@ -122,6 +165,36 @@ function render() {
   });
 }
 function persistSelection() { localStorage.setItem("airwatch-selection", JSON.stringify({ region: selected, measure })); }
+function setAutoRefresh(enabled: boolean) {
+  autoRefreshEnabled = enabled;
+  localStorage.setItem("airwatch-auto-refresh", String(enabled));
+  if (autoRefreshTimer !== undefined) { window.clearInterval(autoRefreshTimer); autoRefreshTimer = undefined; }
+  if (enabled) {
+    void checkForUpdates();
+    autoRefreshTimer = window.setInterval(() => void checkForUpdates(), 5 * 60_000);
+  }
+  render();
+}
+async function checkForUpdates() {
+  if (checkInFlight) return checkInFlight;
+  checkInFlight = (async () => {
+    try {
+      const response = await fetch("/api/poll-current", { method: "POST", headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`Current data check returned HTTP ${response.status}`);
+      const result = await response.json() as { changed?: boolean; checkedAt?: string; error?: string | null };
+      lastCheckAt = result.checkedAt ?? new Date().toISOString();
+      autoRefreshError = result.error ?? "";
+      const hasProviderError = Boolean(data?.metrics.psi.status.error || data?.metrics.pm25.status.error);
+      if (result.changed || result.error || requestError || hasProviderError) await refresh();
+      else updateRefreshStatus();
+    } catch (error) {
+      lastCheckAt = new Date().toISOString();
+      autoRefreshError = error instanceof Error ? error.message : "Unexpected current data check error";
+      await refresh();
+    }
+  })();
+  try { await checkInFlight; } finally { checkInFlight = undefined; }
+}
 async function refresh() {
   const sequence = ++requestSequence;
   loading = !data;
@@ -133,6 +206,7 @@ async function refresh() {
     selected = data.selectedRegion;
     persistSelection();
     requestError = "";
+    updateStartupSnapshotRetry(data);
   } catch (error) {
     if (sequence !== requestSequence) return;
     requestError = error instanceof Error ? error.message : "Unexpected API error";
@@ -146,5 +220,12 @@ async function refresh() {
 }
 render();
 void refresh();
-refreshTimer = window.setInterval(() => void refresh(), 60_000);
-window.addEventListener("beforeunload", () => { if (refreshTimer !== undefined) window.clearInterval(refreshTimer); map?.remove(); });
+if (autoRefreshEnabled) {
+  void checkForUpdates();
+  autoRefreshTimer = window.setInterval(() => void checkForUpdates(), 5 * 60_000);
+}
+window.addEventListener("beforeunload", () => {
+  if (autoRefreshTimer !== undefined) window.clearInterval(autoRefreshTimer);
+  if (startupSnapshotTimer !== undefined) window.clearTimeout(startupSnapshotTimer);
+  map?.remove();
+});

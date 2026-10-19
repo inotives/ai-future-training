@@ -2,7 +2,7 @@
 id: T-0006
 feature: IP-0001
 title: Opt-in five-minute auto refresh
-status: in_progress
+status: done
 depends_on: [T-0005]
 ---
 
@@ -31,14 +31,14 @@ Feature plan: [IP-0001](../../README.md)
 
 ## Acceptance criteria
 
-- [ ] The old manual refresh action is replaced with an accessible toggle that is off by default and persists the user's choice across reloads.
-- [ ] Enabling the toggle triggers a current PSI/PM2.5 check immediately and every five minutes while enabled; disabling it prevents later scheduled checks.
-- [ ] No recurring server-side current poll runs while the toggle is off; startup poll and historical backfill still run.
-- [ ] The shared rate limiter applies to toggle-triggered checks and all provider request attempts.
-- [ ] New readings are stored idempotently. A poll reports data changed only when an observation is inserted or its value/source update timestamp changes; duplicate identical polls do not force a full dashboard refresh.
-- [ ] When data changes, the UI fetches and renders the new API snapshot. With no changes it shows a successful last-check time; provider failures refresh status/error while retaining stored values.
-- [ ] Automated coverage verifies immediate and five-minute scheduling, off/on/reload lifecycle, changed/no-change results, and failure behavior.
-- [ ] The runbook describes the toggle behavior and how to verify it locally.
+- [x] The old manual refresh action is replaced with an accessible toggle that is off by default and persists the user's choice across reloads.
+- [x] Enabling the toggle triggers a current PSI/PM2.5 check immediately and every five minutes while enabled; disabling it prevents later scheduled checks.
+- [x] No recurring server-side current poll runs while the toggle is off; startup poll and historical backfill still run.
+- [x] The shared rate limiter applies to toggle-triggered checks and all provider request attempts.
+- [x] New readings are stored idempotently. A poll reports data changed only when an observation is inserted or its value/source update timestamp changes; duplicate identical polls do not force a full dashboard refresh.
+- [x] When data changes, the UI fetches and renders the new API snapshot. With no changes it shows a successful last-check time; provider failures refresh status/error while retaining stored values.
+- [x] Automated coverage verifies immediate and five-minute scheduling, off/on/reload lifecycle, changed/no-change results, and failure behavior.
+- [x] The runbook describes the toggle behavior and how to verify it locally.
 
 ## Implementation notes
 

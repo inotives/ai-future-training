@@ -42,6 +42,11 @@ export function applyMigrations(database) {
 
 export function upsertObservation(database, observation) {
   const { metric, region, value, observedAt, sourceUpdatedAt = null, fetchedAt } = observation;
+  const existing = database.prepare(`
+    SELECT value, source_updated_at FROM observations
+    WHERE metric = ? AND region_id = ? AND observed_at = ?
+  `).get(metric, region, observedAt);
+  const changed = !existing || existing.value !== value || existing.source_updated_at !== sourceUpdatedAt;
   database.prepare(`
     INSERT INTO observations (metric, region_id, value, observed_at, source_updated_at, fetched_at)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -50,4 +55,5 @@ export function upsertObservation(database, observation) {
       source_updated_at = excluded.source_updated_at,
       fetched_at = excluded.fetched_at
   `).run(metric, region, value, observedAt, sourceUpdatedAt, fetchedAt);
+  return changed;
 }

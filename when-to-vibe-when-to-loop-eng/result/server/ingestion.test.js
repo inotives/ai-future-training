@@ -160,22 +160,37 @@ test("retries timeout, HTTP errors, 429, and malformed payloads within a fixed a
 test("polling twice upserts observations and provider failure preserves existing rows", async () => {
   const database = openDatabase(":memory:");
   let shouldFail = false;
+  let centralPsi = 35;
+  let sourceUpdatedAt = "2026-10-20T00:05:00+08:00";
   const service = createIngestionService({
-    database, now, sleep: async () => {}, attempts: 1,
+    database, now, sleep: async () => {}, attempts: 1, providerRequestLimit: 100,
     fetchImpl: async url => {
       if (shouldFail && String(url).includes("pm25")) throw new Error("provider offline");
-      return response(payload(String(url).includes("pm25") ? "pm25" : "psi"));
+      const metric = String(url).includes("pm25") ? "pm25" : "psi";
+      const result = payload(metric, { north: 31, south: 32, east: 33, west: 34, central: metric === "psi" ? centralPsi : 35 });
+      result.data.items[0].updatedTimestamp = sourceUpdatedAt;
+      return response(result);
     },
   });
   try {
-    await service.pollCurrent();
-    await service.pollCurrent();
+    const first = await service.pollCurrent();
+    const second = await service.pollCurrent();
+    assert.equal(first.changed, true, "the first insert is reported as changed");
+    assert.equal(second.changed, false, "identical observations do not report a change");
     assert.equal(database.prepare("SELECT count(*) AS count FROM observations").get().count, 10);
+    centralPsi = 36;
+    assert.equal((await service.pollCurrent()).changed, true, "a changed value is reported");
+    sourceUpdatedAt = "2026-10-20T00:06:00+08:00";
+    assert.equal((await service.pollCurrent()).changed, true, "a changed source timestamp is reported");
     shouldFail = true;
-    await assert.rejects(service.pollCurrent(), /current air-quality feed\(s\) failed/);
+    await assert.rejects(service.pollCurrent(), error => {
+      assert.match(error.message, /current air-quality feed\(s\) failed/);
+      assert.equal(error.changed, false, "the successful duplicate PSI feed does not change the result when PM2.5 fails");
+      return true;
+    });
     assert.equal(database.prepare("SELECT count(*) AS count FROM observations").get().count, 10);
     assert.equal(database.prepare("SELECT count(*) AS count FROM ingestion_runs WHERE status = 'failed'").get().count, 1);
-    assert.equal(database.prepare("SELECT count(*) AS count FROM ingestion_runs WHERE status = 'succeeded'").get().count, 5);
+    assert.equal(database.prepare("SELECT count(*) AS count FROM ingestion_runs WHERE status = 'succeeded'").get().count, 9);
   } finally {
     await service.stop();
     database.close();
