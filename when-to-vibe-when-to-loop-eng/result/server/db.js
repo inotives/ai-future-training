@@ -23,19 +23,20 @@ export function applyMigrations(database) {
     );
   `);
   const applied = new Set(database.prepare("SELECT version FROM schema_migrations").all().map(row => row.version));
-  if (applied.has(1)) return;
-
-  const migrationPath = fileURLToPath(new URL("001_initial.sql", migrationsDirectory));
-  // Migration scripts are trusted, versioned files shipped with this application.
-  const sql = readFileSync(migrationPath, "utf8");
-  database.exec("BEGIN IMMEDIATE;");
-  try {
-    database.exec(sql);
-    database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(1);
-    database.exec("COMMIT;");
-  } catch (error) {
-    database.exec("ROLLBACK;");
-    throw error;
+  for (const version of [1, 2]) {
+    if (applied.has(version)) continue;
+    const migrationPath = fileURLToPath(new URL(`${String(version).padStart(3, "0")}_${version === 1 ? "initial" : "ingestion_progress"}.sql`, migrationsDirectory));
+    // Migration scripts are trusted, versioned files shipped with this application.
+    const sql = readFileSync(migrationPath, "utf8");
+    database.exec("BEGIN IMMEDIATE;");
+    try {
+      database.exec(sql);
+      database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(version);
+      database.exec("COMMIT;");
+    } catch (error) {
+      database.exec("ROLLBACK;");
+      throw error;
+    }
   }
 }
 

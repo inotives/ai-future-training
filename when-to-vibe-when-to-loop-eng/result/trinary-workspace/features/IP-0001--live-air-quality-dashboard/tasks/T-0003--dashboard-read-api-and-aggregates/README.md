@@ -2,7 +2,7 @@
 id: T-0003
 feature: IP-0001
 title: Dashboard read API and aggregates
-status: queued
+status: ready
 depends_on: [T-0002]
 ---
 

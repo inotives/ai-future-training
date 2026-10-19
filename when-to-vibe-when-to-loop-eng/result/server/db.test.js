@@ -13,7 +13,7 @@ test("fresh database initializes schema and migrations are idempotent", () => {
     applyMigrations(database);
     const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name);
     assert.deepEqual(tables.sort(), ["ingestion_runs", "observations", "regions", "schema_migrations"].sort());
-    assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get().count, 1);
+    assert.equal(database.prepare("SELECT count(*) AS count FROM schema_migrations").get().count, 2);
     database.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
