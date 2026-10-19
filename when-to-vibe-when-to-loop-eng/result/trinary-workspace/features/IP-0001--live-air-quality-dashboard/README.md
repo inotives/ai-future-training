@@ -1,7 +1,7 @@
 ---
 id: IP-0001
 title: Ingest Live Air Quality Data and Bind the Dashboard
-status: Ready for human acceptance
+status: Implementing
 branch: feat/live-air-quality-dashboard
 created_at: 2026-10-19T21:54:04Z
 ---
@@ -26,7 +26,7 @@ Replace the dashboard's synthetic PSI and PM2.5 fixture with real Singapore air-
 - Add a small local Node API and SQLite persistence layer to this project. Vite will proxy the API during local development.
 - Ingest the official data.gov.sg / NEA PSI and PM2.5 feeds, including a 30-day initial historical backfill and ongoing updates.
 - Store timestamped regional readings with their metric, observation time, source update time, and local ingestion time. Make ingestion idempotent and paced; handle HTTP errors, malformed responses, missing values, and rate limits with bounded retries/backoff.
-- Poll both source feeds every 10 minutes. Refresh dashboard data from the local API every minute.
+- Poll both source feeds once at service startup and during initial/resumable backfill. When the dashboard auto-refresh toggle is enabled, check both current feeds immediately and every five minutes while the dashboard remains open; refresh displayed data only when the poll changes a reading or reports an error.
 - Provide the UI with latest readings, recent time series, seven-day hourly aggregates, source/update status, and region metadata through typed API responses.
 - Replace the fixture-driven demo state with real loading, empty, stale, and error behavior. Keep the existing layout and interactions, use SGT for display, and retain the last stored readings during upstream outages.
 - Add focused automated coverage for persistence, parsing, history backfill, duplicate protection, aggregation, and outage behavior, plus run the production build and record manual end-to-end evidence.
@@ -92,24 +92,25 @@ The user approved the five-task dependency chain in chat on 2026-10-19 at 21:57 
 3. Repeating a date import or current poll does not create duplicate observations. Missing regional values remain missing and are not interpolated.
 4. The read API returns values that match the corresponding stored/source records for all regions and both measures. Times are presented in SGT; freshness uses source update or successful-fetch time rather than observation time alone.
 5. The UI's highest-value cards, region list, map, selected-region details, 24-hour trend, and seven-day hourly profile use database-backed responses while preserving region and metric selection across refreshes.
-6. The API ingestion job runs at the configured 10-minute cadence and the UI fetches at the configured one-minute cadence. Neither job creates duplicate measurements.
+6. With auto refresh off, no recurring provider poll runs. With it on, both feeds are checked immediately and every five minutes while the dashboard is open. New/changed observations are persisted idempotently and the UI refreshes only when readings change or an error needs to be shown.
 7. Simulated network errors, 429 responses, malformed payloads, and empty datasets retain stored observations, expose a clear stale/error/no-data state, and retry within bounded backoff.
 8. Automated tests cover source parsing, date backfill, persistence/upsert, aggregation, and failure handling; `npm run build` succeeds; a manual local run demonstrates live values, history, and an outage state.
 9. The UI identifies NEA/data.gov.sg as its source and displays the relevant observation/update time so users can judge freshness.
 
 ## Task breakdown
 
-The approved feature scope is decomposed into the task briefs below. The human approved this five-task dependency graph on 2026-10-19T21:57:47Z. All five implementation tasks are now `done` after independent review.
+The approved feature scope is decomposed into the task briefs below. The human approved the original five-task dependency graph on 2026-10-19T21:57:47Z. On 2026-10-20, the human requested an opt-in five-minute auto-refresh toggle; this approved scope amendment is recorded in T-0006 handoff 1. T-0001 through T-0005 are done; T-0006 is ready.
 
 1. [T-0001 — Local API and SQLite foundation](tasks/T-0001--local-api-and-sqlite-foundation/README.md) — no dependencies.
 2. [T-0002 — NEA ingestion and historical backfill](tasks/T-0002--nea-ingestion-and-historical-backfill/README.md) — depends on T-0001.
 3. [T-0003 — Dashboard read API and aggregates](tasks/T-0003--dashboard-read-api-and-aggregates/README.md) — depends on T-0002.
 4. [T-0004 — Bind the dashboard to live data](tasks/T-0004--bind-dashboard-to-live-data/README.md) — depends on T-0003.
 5. [T-0005 — Resilience, automated checks, and local runbook](tasks/T-0005--resilience-checks-and-runbook/README.md) — depends on T-0004.
+6. [T-0006 — Opt-in five-minute auto refresh](tasks/T-0006--opt-in-five-minute-auto-refresh/README.md) — depends on T-0005.
 
 ## Final human acceptance
 
-- Evidence: all five task cycles completed and independently approved. `npm test` passed (20 tests), `npm run build` passed, and `git diff --check` passed. A manual Chrome run of `http://127.0.0.1:3565/` through the Vite proxy to the API on `127.0.0.1:3566` showed live PSI and PM2.5 readings for all five regions, latest observation/source-update times, a 24-hour trend, and seven-day hourly history with 7/7 day coverage. After the shared six-per-ten-second limiter was added, the server logged no 429 during the second smoke session. Deterministic rendered integration tests also verified retained values and the visible provider-error state after a simulated upstream failure.
+- Evidence: T-0001 through T-0005 are complete and independently approved. T-0006 auto-refresh change is in progress; final acceptance evidence will be updated after review. `npm test` passed (20 tests), `npm run build` passed, and `git diff --check` passed. A manual Chrome run of `http://127.0.0.1:3565/` through the Vite proxy to the API on `127.0.0.1:3566` showed live PSI and PM2.5 readings for all five regions, latest observation/source-update times, a 24-hour trend, and seven-day hourly history with 7/7 day coverage. After the shared six-per-ten-second limiter was added, the server logged no 429 during the second smoke session. Deterministic rendered integration tests also verified retained values and the visible provider-error state after a simulated upstream failure.
 - Limitation: the outage state was verified through the rendered integration harness with a simulated provider failure, not by forcing a live provider outage in Chrome.
 - Human decision: pending final acceptance.
 - Acceptance date: pending.
