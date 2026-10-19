@@ -2,7 +2,7 @@
 id: T-0006
 feature: IP-0001
 title: Opt-in five-minute auto refresh
-status: ready
+status: in_progress
 depends_on: [T-0005]
 ---
 
