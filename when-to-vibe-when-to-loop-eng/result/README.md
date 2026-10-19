@@ -4,14 +4,16 @@ This is a frontend-only starter for the Singapore Temperature Explorer lesson. I
 
 ## Run it
 
-Requirements: Node.js 20.19+ or 22.12+.
+Requirements: Node.js 22.13+ (uses the built-in `node:sqlite` module).
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3555>.
+This starts the local API on <http://127.0.0.1:3556> and Vite on <http://localhost:3555>. Vite proxies `/api` requests to the API. The SQLite database is created at `.data/air-quality.sqlite` on first start; set `AQI_DB_PATH` to use another path. Run `npm run test` for the API and database checks.
+
+Run only the API with `npm run start:api`.
 
 ## Start building
 

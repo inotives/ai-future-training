@@ -1,7 +1,7 @@
 ---
 id: IP-0001
 title: Ingest Live Air Quality Data and Bind the Dashboard
-status: Approved
+status: Implementing
 branch: feat/live-air-quality-dashboard
 created_at: 2026-10-19T21:54:04Z
 ---

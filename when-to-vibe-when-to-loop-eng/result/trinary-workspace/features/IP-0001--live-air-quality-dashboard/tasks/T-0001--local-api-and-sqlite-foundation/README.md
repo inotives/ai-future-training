@@ -2,7 +2,7 @@
 id: T-0001
 feature: IP-0001
 title: Local API and SQLite foundation
-status: ready
+status: done
 depends_on: []
 ---
 

@@ -3,10 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 3555 --strictPort",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "node server/index.js",
+    "dev:vite": "vite --host 127.0.0.1 --port 3555 --strictPort",
+    "start:api": "node server/index.js",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 3555 --strictPort"
+    "preview": "vite preview --host 127.0.0.1 --port 3555 --strictPort",
+    "test": "node --test"
   },
   "dependencies": {
     "leaflet": "^1.9.4"

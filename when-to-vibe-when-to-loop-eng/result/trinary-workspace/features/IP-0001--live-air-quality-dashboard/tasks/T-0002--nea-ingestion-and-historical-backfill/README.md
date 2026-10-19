@@ -2,7 +2,7 @@
 id: T-0002
 feature: IP-0001
 title: NEA ingestion and historical backfill
-status: queued
+status: ready
 depends_on: [T-0001]
 ---
 
