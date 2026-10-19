@@ -99,7 +99,7 @@ The user approved the five-task dependency chain in chat on 2026-10-19 at 21:57 
 
 ## Task breakdown
 
-The approved feature scope is decomposed into the task briefs below. The human approved the original five-task dependency graph on 2026-10-19T21:57:47Z. On 2026-10-20, the human requested an opt-in five-minute auto-refresh toggle; this approved scope amendment is recorded in T-0006 handoff 1. T-0001 through T-0005 are done; T-0006 is ready.
+The approved feature scope is decomposed into the task briefs below. The human approved the original five-task dependency graph on 2026-10-19T21:57:47Z. On 2026-10-20, the human requested an opt-in five-minute auto-refresh toggle; this approved scope amendment is recorded in T-0006 handoff 1. T-0001 through T-0006 are done; the user approved T-0006 on 2026-10-20 after checking it in the dashboard.
 
 1. [T-0001 — Local API and SQLite foundation](tasks/T-0001--local-api-and-sqlite-foundation/README.md) — no dependencies.
 2. [T-0002 — NEA ingestion and historical backfill](tasks/T-0002--nea-ingestion-and-historical-backfill/README.md) — depends on T-0001.
@@ -112,5 +112,5 @@ The approved feature scope is decomposed into the task briefs below. The human a
 
 - Evidence: T-0001 through T-0006 are complete, and T-0006 was independently approved by the reviewer. `npm test` passed (25 tests), `npm run build` passed, and `git diff --check` passed. A manual Chrome check at `http://127.0.0.1:3565/` through the Vite proxy to API port 3566 showed the toggle off by default, enabled it, observed the immediate check complete and “Last check” update, then disabled it and confirmed it returned to Off. The page displayed live PSI and PM2.5 readings for all five regions, latest observation/source-update times, a 24-hour trend, and seven-day hourly history. Previous smoke evidence confirms no provider 429 after shared rate limiting. Deterministic rendered integration tests cover the five-minute timer, reload persistence, changed/no-change behavior, and provider-error handling.
 - Limitation: the live browser check exercised the immediate poll; the five-minute cadence and provider outage behavior were verified with automated tests rather than waiting five minutes or forcing a live outage.
-- Human decision: pending final acceptance.
-- Acceptance date: pending.
+- Human decision: T-0006 was approved after the user checked the auto-refresh feature and confirmed it works. Overall feature acceptance remains pending.
+- Acceptance date: 2026-10-20 (T-0006 approval).
