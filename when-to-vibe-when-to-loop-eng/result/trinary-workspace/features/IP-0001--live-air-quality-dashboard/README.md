@@ -81,6 +81,10 @@ The official real-time endpoints and their date queries were inspected through A
 
 None for the proposed scope. The user explicitly approved this plan on 2026-10-19 at 21:55 UTC; task decomposition may proceed.
 
+### Task breakdown approval
+
+The user approved the five-task dependency chain in chat on 2026-10-19 at 21:57 UTC. This approval is recorded before marking T-0001 ready. The task graph is validated as unique, complete, and acyclic.
+
 ## Acceptance checks
 
 1. A clean local setup can initialize SQLite, start the API and Vite UI, and render the dashboard without synthetic fixture data.
@@ -93,9 +97,9 @@ None for the proposed scope. The user explicitly approved this plan on 2026-10-1
 8. Automated tests cover source parsing, date backfill, persistence/upsert, aggregation, and failure handling; `npm run build` succeeds; a manual local run demonstrates live values, history, and an outage state.
 9. The UI identifies NEA/data.gov.sg as its source and displays the relevant observation/update time so users can judge freshness.
 
-## Proposed task breakdown
+## Task breakdown
 
-Task folders are intentionally not created before plan approval. After approval, create these task briefs and dependencies:
+The approved feature scope is decomposed into the task briefs below. The human approved this five-task dependency graph on 2026-10-19T21:57:47Z. T-0001 is `ready`; the remaining tasks are `queued` until their dependencies are done.
 
 1. [T-0001 — Local API and SQLite foundation](tasks/T-0001--local-api-and-sqlite-foundation/README.md) — no dependencies.
 2. [T-0002 — NEA ingestion and historical backfill](tasks/T-0002--nea-ingestion-and-historical-backfill/README.md) — depends on T-0001.
