@@ -9,20 +9,56 @@ AI Future Training is a growing collection of hands-on learning series about art
 - **Share the process:** document decisions, useful discoveries, and lessons learned so others can follow along.
 - **Keep it practical:** connect AI concepts to tools, workflows, and projects people can use.
 
-## Default project stack
+## Pre-flight: install your tools
 
-Lessons use a simple local web app stack:
+Before starting a learning series, make sure you have **Node.js** and one coding agent: **Claude Code** or **Codex CLI**. Individual projects may list additional tools. The current starter and workshop API use TypeScript on Node.js, so Python is not required.
 
-| Area | Default | Notes |
-| --- | --- | --- |
-| UI | One TypeScript single-page app with a single dashboard screen; [daisyUI via CDN](https://daisyui.com/docs/cdn/?lang=en) | Use daisyUI components for the dashboard interface. |
-| Icons | [Flaticon](https://www.flaticon.com/) | Choose and download icons for the project, and follow the license and attribution terms for each asset. Flaticon is an icon source; lessons should include the icon files they use rather than assume Flaticon is a runtime CDN. |
-| Language | TypeScript for the UI; Python for the API | Use TypeScript for browser-side application code and Python for API code. |
-| Local API server | FastAPI | Run the API at `http://localhost:3554`. |
-| Local UI server | Lesson's UI development server | Serve the single-page dashboard at `http://localhost:3555`; it calls the API on port `3554`. |
-| Database | SQLite | Keep project data in a simple local database. |
+### Check what is already installed
 
-This stack is intended to keep lessons easy to run and modify on a learner's computer.
+Open Terminal and run:
+
+```sh
+node --version
+npm --version
+claude --version
+codex --version
+```
+
+You only need one of `claude` or `codex` to work. If a command prints a version number, that tool is installed. If Terminal says `command not found`, follow the matching macOS installation steps below.
+
+### Install Node.js on macOS
+
+1. Visit the [Node.js download page](https://nodejs.org/en/download) and choose the **LTS** release for macOS.
+2. Download and open the macOS **.pkg installer**, then follow the installer prompts.
+3. Close and reopen Terminal, then confirm `node --version` and `npm --version` each print a version.
+
+### Install one coding agent on macOS
+
+Choose either option. You will sign in the first time you run it.
+
+**Claude Code**
+
+1. Follow Anthropic's [Claude Code setup guide](https://code.claude.com/docs/en/setup) for macOS.
+2. To install from Terminal, run:
+
+   ```sh
+   curl -fsSL https://claude.ai/install.sh | bash
+   ```
+
+3. Close and reopen Terminal, then run `claude --version`.
+
+**Codex CLI**
+
+1. In Terminal, run the official macOS installer:
+
+   ```sh
+   curl -fsSL https://chatgpt.com/codex/install.sh | sh
+   ```
+
+2. Close and reopen Terminal, then run `codex --version`.
+3. When you first run `codex`, follow the sign-in prompt.
+
+If you use a managed work computer and cannot install software, ask your IT team for help before the workshop.
 
 ## How each lesson works
 

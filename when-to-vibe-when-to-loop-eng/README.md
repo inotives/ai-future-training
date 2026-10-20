@@ -19,12 +19,15 @@ By the end, participants should be able to:
 - Use Trinary Agents to break a feature into dependency-aware implementation and review tasks.
 - Explain how the live data source can be delayed, incomplete, or corrected.
 
+## Pre flight setup 
+
+
 ## Technology stack
 
 - **UI:** one TypeScript single-page app with a single dashboard screen, styled with [daisyUI via CDN](https://daisyui.com/?lang=en) and a [Leaflet](https://leafletjs.com/) map for station locations. Use OpenStreetMap tiles with visible attribution and follow the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/).
 - **Icons:** [Flaticon](https://www.flaticon.com/). Download selected icons into the project and follow their license and attribution terms; use the downloaded assets rather than treating Flaticon as a runtime CDN.
-- **Language:** TypeScript for the UI and Python for the API.
-- **Local API server:** FastAPI at `http://localhost:3554`.
+- **Language:** TypeScript for both the UI and API, running on Node.js.
+- **Local API server:** a Node.js TypeScript server at `http://localhost:3554`.
 - **Local UI server:** serve the single-page dashboard at `http://localhost:3555`; it calls the API at `http://localhost:3554`.
 - **Database:** SQLite for simple local persistence where the lesson needs to store data.
 
@@ -71,7 +74,7 @@ Introduce the decision rule:
 
 ### 2. Vibe-code the mock UI
 
-Ask Claude Code to build the dashboard using only the fixture. Iterate on the station list, selected-station detail, chart, and data-health presentation. Keep this phase focused on information hierarchy and interaction rather than real API access.
+Ask your coding agent to build the dashboard using only the fixture. Iterate on the station list, selected-station detail, chart, and data-health presentation. Keep this phase focused on information hierarchy and interaction rather than real API access.
 
 At the end, review what the mock has clarified and what it has merely assumed. Capture the fields, user actions, and loading, empty, stale, and error states that the real implementation must support.
 
@@ -95,7 +98,7 @@ A possible task breakdown is:
 1. Inspect the live API contract and create representative fixtures.
 2. Implement a source client and normalize station readings, timestamps, and units.
 3. If historical queries are in scope, ingest and persist readings with an idempotent key such as station ID plus reading timestamp; account for source corrections.
-4. Add a backend endpoint that returns the view the UI needs.
+4. Add a Node.js TypeScript API endpoint that returns the view the UI needs.
 5. Connect the UI and implement loading, stale, missing, and error states.
 6. Verify the end-to-end flow and have an independent reviewer check the implementation against the feature plan.
 

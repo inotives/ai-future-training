@@ -2,6 +2,8 @@ node_modules/
 dist/
 .vite/
 .codegraph/
+.agents/
+.claude/
 
 # Public source observations are intentionally versioned.
 !/.data/
