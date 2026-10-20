@@ -221,7 +221,7 @@ test("stop waits for an in-flight poll before the database is closed", async () 
   }
 });
 
-test("date backfill resumes from durable metric/date successes after restart", async () => {
+test("date backfill resumes failures and refreshes the recent overlap after restart", async () => {
   const database = openDatabase(":memory:");
   let failFirstPm25Date = true;
   const requested = [];
@@ -245,10 +245,10 @@ test("date backfill resumes from durable metric/date successes after restart", a
     const afterFirst = requested.length;
     const second = await makeService().importHistory({ dates: ["2026-10-19", "2026-10-20"] });
     assert.equal(second.errors.length, 0);
-    assert.equal(requested.length - afterFirst, 1);
-    assert.equal(requested.at(-1), "pm25:2026-10-19");
+    assert.equal(requested.length - afterFirst, 4);
+    assert.deepEqual(requested.slice(afterFirst), ["psi:2026-10-19", "pm25:2026-10-19", "psi:2026-10-20", "pm25:2026-10-20"]);
     assert.equal(database.prepare("SELECT count(*) AS count FROM observations").get().count, 10);
-    assert.equal(database.prepare("SELECT count(*) AS count FROM ingestion_runs WHERE run_type = 'backfill' AND status = 'succeeded'").get().count, 4);
+    assert.equal(database.prepare("SELECT count(*) AS count FROM ingestion_runs WHERE run_type = 'backfill' AND status = 'succeeded'").get().count, 7);
   } finally {
     database.close();
   }

@@ -19,8 +19,6 @@ By the end, participants should be able to:
 - Use Trinary Agents to break a feature into dependency-aware implementation and review tasks.
 - Explain how the live data source can be delayed, incomplete, or corrected.
 
-## Pre flight setup 
-
 
 ## Technology stack
 
@@ -37,7 +35,26 @@ Use NEA's [Air Temperature across Singapore dataset](https://data.gov.sg/dataset
 
 ## Start from the boilerplate
 
-Copy [`boilerplate/`](boilerplate/) into your own working folder, such as `my-result/`, and follow its README to run the UI at `http://localhost:3555`. It provides a TypeScript SPA scaffold and synthetic fixture data, but no API server or finished dashboard. Build the mock dashboard in your copy during the vibe-coding phase; use `result/` only as the expected-outcome reference.
+Copy [`boilerplate/`](boilerplate/) into your own working folder, such as `my-result/`,
+
+```
+cp -R boilerplate toni-result
+```
+
+Then cd into the new folder you just copy from boilerplate.
+
+follow its README to run the UI at `http://localhost:3555`. It provides a TypeScript SPA scaffold and synthetic fixture data, but no API server or finished dashboard. Build the mock dashboard in your copy during the vibe-coding phase;
+
+the `result/` folder is just the expected-outcome as reference.
+
+### What next
+
+On a new terminal, cd into the folder you just copied from boilerplate, start your coding agent `claude` or `codex`.
+You agent now will treat this a folder as its workspace in this session.
+
+With this, you can start vibe coding.
+Tell your agent to read the README.md to understand what we are building. basically is what is outline in next section.
+
 
 ### Dashboard idea
 

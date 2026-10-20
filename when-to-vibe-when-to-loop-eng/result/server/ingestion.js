@@ -27,7 +27,7 @@ export function singaporeDate(date = new Date()) {
 }
 
 export function backfillDates(now = new Date(), days = 30) {
-  if (!Number.isInteger(days) || days < 1 || days > 366) throw new RangeError("days must be between 1 and 366");
+  if (!Number.isInteger(days) || days < 1 || days > 36_500) throw new RangeError("days must be between 1 and 36500");
   const today = singaporeDate(now);
   const [year, month, day] = today.split("-").map(Number);
   // UTC arithmetic is used on Singapore's calendar date to avoid host timezone/DST effects.
@@ -35,6 +35,21 @@ export function backfillDates(now = new Date(), days = 30) {
     const date = new Date(Date.UTC(year, month - 1, day - offset));
     return date.toISOString().slice(0, 10);
   });
+}
+
+function resumableBackfillDates(database, now) {
+  const earliest = database.prepare(`
+    SELECT MIN(requested_date) AS date FROM ingestion_runs
+    WHERE run_type = 'backfill' AND status = 'succeeded' AND requested_date IS NOT NULL
+  `).get()?.date;
+  if (!earliest) return backfillDates(now);
+
+  const [year, month, day] = singaporeDate(now).split("-").map(Number);
+  const today = Date.UTC(year, month - 1, day);
+  const start = Date.parse(`${earliest}T00:00:00.000Z`);
+  if (!Number.isFinite(start) || start > today) return backfillDates(now);
+  const days = Math.floor((today - start) / 86_400_000) + 1;
+  return backfillDates(now, days);
 }
 
 function isoTimestamp(value, label) {
@@ -238,6 +253,9 @@ export function createIngestionService({
   }
 
   async function importHistory({ days = 30, dates = backfillDates(now(), days) } = {}) {
+    // Recent provider dates can gain observations after an earlier successful fetch.
+    // Revisit a short overlap on every startup so late-arriving hours are persisted.
+    const recentDates = new Set(backfillDates(now(), 3));
     const completed = database.prepare(`
       SELECT 1 FROM ingestion_runs
       WHERE metric = ? AND run_type = 'backfill' AND requested_date = ? AND status = 'succeeded'
@@ -248,7 +266,7 @@ export function createIngestionService({
     const errors = [];
     for (const date of dates) {
       for (const metric of ["psi", "pm25"]) {
-        if (completed.get(metric, date)) continue;
+        if (completed.get(metric, date) && !recentDates.has(date)) continue;
         if (requestCount > 0 && backfillDelayMs > 0) await sleep(backfillDelayMs);
         if (stopped) return { recordsWritten, errors };
         requestCount += 1;
@@ -265,7 +283,7 @@ export function createIngestionService({
     try { await pollCurrent(); }
     catch (error) { console.error("Initial air-quality poll failed:", error.message); }
     if (stopped) return;
-    historyTask = importHistory().then(result => {
+    historyTask = importHistory({ dates: resumableBackfillDates(database, now()) }).then(result => {
       for (const failure of result.errors) console.error(`Backfill failed for ${failure.metric} ${failure.date}:`, failure.error.message);
     }).catch(error => console.error("Air-quality backfill failed:", error.message));
     return historyTask;
